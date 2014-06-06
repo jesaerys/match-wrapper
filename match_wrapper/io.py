@@ -485,13 +485,13 @@ def open(filename, kind=None):
 
 
 
-# zcombine parameter file
+# read/write zcombine parameter file
 
 V = dict(name='WFC475W', min=16.00, max=27.00)
 I = dict(name='WFC814W', min=15.00, max=26.20)
 filters = [V, I]
 
-gate_x = [1.25, 5.00, 5.00, 1.25]
+gate_x = [2.25, 5.00, 5.00, 1.25]
 gate_y = [27.00, 27.00, 21.00, 21.00]
 CMD = CMDParam(Vname='WFC475W', Iname='WFC814W', Vstep=0.10, VImin=-0.50,
                VImax=5.00, VIstep=0.05, fake_sm=5,
