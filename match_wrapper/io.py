@@ -5,6 +5,8 @@
 ==================
 
 """
+import numpy as np
+
 from .util import Param
 
 
@@ -202,7 +204,7 @@ class CalcsfhParam(object):
         Minimum final metallicity for 'zinc'; see `mode`.
     logZfmax : float
         Maximum final metallicity for 'zinc'; see `mode`.
-    logZstep : float
+    logZspread : float
         Metallicity spread for 'setz' mode; see `mode`.
     BF : float
     Bad0 : float
@@ -246,9 +248,9 @@ class CalcsfhParam(object):
         - 'nbins': Size of the smoothing kernel
         - 'scale': Set the scaling for the background CMD. If negative, a
           variable number of stars is used.
-        - 'filename': Path to the file containing the background CMD data.
-          If None (default), a smoothed version of the observed CMD is
-          used.
+        - 'filename': Optional; path to the file containing the background
+          CMD data. If None (default), a smoothed version of the observed
+          CMD is used.
         - 'cmdfile': Optional; True if 'filename' is formatted like a .cmd
           file output by calcsfh. Default is False, i.e., 'filename' is
           like a two-column input photometry file for calcsfh.
@@ -442,22 +444,47 @@ class CalcsfhParam(object):
 
         # Gate list
         for CMD in self.CMDs:
-            Nexg = formatter('Nexclude_gates', CMDs.Nexclude_gates)
-            exg = [
-            Ncog = formatter('Ncombine_gates', CMDs.Ncombine_gates)
+            Nexc = formatter('Nexclude_gates', CMD.Nexclude_gates)
+            exc = ' '.join([formatter('exclude_gates', x)
+                            for gate in CMD.exclude_gates
+                            for point in gate for x in point])
+            line1 = '{0:s} {1:s}'.format(Nexc, exc) if exc else Nexc
+            Ncom = formatter('Ncombine_gates', CMD.Ncombine_gates)
+            com = ' '.join([formatter('combine_gates', x)
+                            for gate in CMD.combine_gates
+                            for point in gate for x in point])
+            line2 = '{0:s} {1:s}'.format(Ncom, com) if com else Ncom
+            line = '{0:s} {1:s}'.format(line1, line2)
+            lines.append(line)
 
-        # 7) (per CMD): *Nexclude_gates exclude_gates *Ncombine_gates combine_gates
-        #    (one gate: x1 y1 x2 y2 x3 y3 x4 y4)
-        # 8) *Ntbins
-        # 9) (Ntbins): (-)To (-)Tf (logZcentral(setz)) (fixedSFR)
-        # 10) (per bg CMD): -1 (-)nbins scale filename
-        # * space between scale and filename?
+        # Number of age bins
+        line = formatter('Ntbins', self.Ntbins)
+        lines.append(line)
 
+        # Age bins
+        linage = -1 if self.linage else 1
+        for i in range(self.Ntbins):
+            edge1 = formatter('To', linage*self.agebins[i])
+            edge2 = formatter('Tf', linage*self.agebins[i+1])
+            logZc = formatter('logZcentral', self.logZcentral[i]) if self.mode == 'setz' else ''
+            SFR = formatter('SFR', self.SFR[i]) if self.SFR[i] else ''
+            row = [edge1, edge2, logZc, SFR]
+            line = ' '.join(val for val in row if val)  # non-empty strs only
+            lines.append(line)
 
-        # note: tbins = zip(self.tbins[:-1], self.tbins[1:])
+        # Background/foreground CMDs
+        for CMD in self.bgCMDs:
+            cmdfile = -1 if CMD.get('cmdfile') else 1
+            nbins = formatter('nbins', cmdfile*CMD['nbins'])
+            scale = formatter('scale', CMD['scale'])
+            filename = CMD.get('filename', '')
+            row = ['-1', nbins, scale, filename]
+            line = ' '.join(val for val in row if val)  # non-empty strs only
+            # Space, or no space, between scale and filename?
+            lines.append(line)
 
         with open(filename, 'w') as f:
-            f.writelines(lines)
+            f.writelines('{:s}\n'.format(line) for line in lines)
 
         return None
 
@@ -491,7 +518,7 @@ V = dict(name='WFC475W', min=16.00, max=27.00)
 I = dict(name='WFC814W', min=15.00, max=26.20)
 filters = [V, I]
 
-gate_x = [2.25, 5.00, 5.00, 1.25]
+gate_x = [1.25, 5.00, 5.00, 1.25]
 gate_y = [27.00, 27.00, 21.00, 21.00]
 CMD = CMDParam(Vname='WFC475W', Iname='WFC814W', Vstep=0.10, VImin=-0.50,
                VImax=5.00, VIstep=0.05, fake_sm=5,
@@ -511,10 +538,54 @@ param = CalcsfhParam(
 
 
 def custom_formatter(key, val):
-    if key in []:
-        result = ''
+    fmt_dict = {
+            'IMF': '{:.2f}',
+            'dmodmin': '{:.2f}',
+            'dmodmax': '{:.2f}',
+            'Avmin': '{:.2f}',
+            'Avmax': '{:.2f}',
+            'step': '{:.2f}',
+            'logZmin': '{:.1f}',
+            'logZmax': '{:.1f}',
+            'logZstep': '{:.1f}',
+            'logZimin': '{:.1f}',
+            'logZimax': '{:.1f}',
+            'logZfmin': '{:.1f}',
+            'logZfmax': '{:.1f}',
+            'logZspread': '{:.1f}',
+            'BF': '{:.2f}',
+            'Bad0': None,
+            'Bad1': None,
+            'Ncmds': '{:d}',
+            'Vstep': '{:.2f}',
+            'VIstep': '{:.2f}',
+            'fake_sm': '{:d}',
+            'VImin': '{:.2f}',
+            'VImax': '{:.2f}',
+            'Vname': '{:s}',
+            'Iname': '{:s}',
+            'min': '{:.2f}',
+            'max': '{:.2f}',
+            'name': '{:s}',
+            'Nexclude_gates': '{:d}',
+            'exclude_gates': '{:.2f}',
+            'Ncombine_gates': '{:d}',
+            'combine_gates': '{:.2f}',
+            'Ntbins': '{:d}',
+            'To': '{:.2f}',
+            'Tf': '{:.2f}',
+            'logZcentral': '{:.1f}',
+            'SFR': '{:.3e}',
+            'nbins': '{:d}',
+            'scale': '{:d}',
+            'filename': '{:s}',
+            }
+    if key in ['Bad0', 'Bad1']:
+        n = abs(int(np.log10(val)))  # the expoonent is negative
+        result = '{1:{0}f}'.format(n, val)
     else:
-        result = str(val)
+        result = fmt_dict[key].format(val)
+
     return result
 
 
