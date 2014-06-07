@@ -7,8 +7,6 @@
 """
 import numpy as np
 
-from .util import Param
-
 
 class CMDParam(object):
 
@@ -197,13 +195,13 @@ class CalcsfhParam(object):
     logZstep : float
         "dlogZ"; see `mode`.
     logZimin : float
-        Minimum initial metallicity for 'zinc' mode; see `mode`.
+        Minimum initial (oldest age) metallicity for 'zinc' mode; see `mode`.
     logZimax : float
-        Maximum initial metallicity for 'zinc'; see `mode`.
+        Maximum initial (oldest age) metallicity for 'zinc'; see `mode`.
     logZfmin : float
-        Minimum final metallicity for 'zinc'; see `mode`.
+        Minimum final (youngest age) metallicity for 'zinc'; see `mode`.
     logZfmax : float
-        Maximum final metallicity for 'zinc'; see `mode`.
+        Maximum final (youngest age) metallicity for 'zinc'; see `mode`.
     logZspread : float
         Metallicity spread for 'setz' mode; see `mode`.
     BF : float
@@ -224,7 +222,7 @@ class CalcsfhParam(object):
     agebins : list
         List of edges of the age bins (either in yr or as log10(t/yr),
         depending on `linage`). The ith and i+1th elements correspond to
-        "To" and "Tf" of the ith age bin.
+        "To" (youngest edge) and "Tf" (oldest edge) of the ith age bin.
     linage : bool
         If True, values in `agebins` are linear years. Default is False
         (log10).
@@ -241,7 +239,7 @@ class CalcsfhParam(object):
 
         .. note:: This feature is not documented in the MATCH 2.5 README!
 
-    bgcmd : list
+    bgCMDs : list
         List of background CMD dictionaries. Each dictionary contains the
         keys,
 
@@ -332,7 +330,7 @@ class CalcsfhParam(object):
 
         bgCMDs = kwargs.get('bgCMDs', [])
         try:
-            bgCMDs['nbins']
+            bgCMDs['nbins']  # just a test for a dict or a list of dict
         except TypeError:
             pass
         else:
@@ -359,22 +357,155 @@ class CalcsfhParam(object):
         return l if l>0 else 0
 
     def read(self, filename):
-        """
-        # Defaults
-        linage = False
-        agebins_col3 = False
-        bgcmd = None
+        """Create a CalcsfhParam instance from a calcsfh parameter file.
 
+        Parameters
+        ----------
+        filename : str
+            Absolute path to the input parameter file.
+
+        Returns
+        -------
+        CalcsfhParam
+
+        """
         with open(filename, 'r') as f:
             lines = f.readlines()
 
-        line = lines[0].split()
+        items = []
+        n = 0
 
-        return CalcsfhParam(IMF, dmod, Av, step, logZ, BF, badfrac, CMD,
-                            agebins, linage=linage,
-                            agebins_col3=agebins_col3, bgcmd=bgcmd)
-        """
-        return None
+        # IMF, dmod, Av parameters
+        keys = ['IMF', 'dmodmin', 'dmodmax', 'step', 'Avmin', 'Avmax']
+        vals = [float(val) for val in lines[n].split()[:-1]]
+        items += zip(keys, vals)
+        n += 1
+
+        # Metallicity parameters
+        vals = [float(val) for val in lines[n].split()]
+        if len(vals) == 1:
+            mode = 'setz'
+            keys = ['logZspread']
+        elif len(vals) == 7:
+            mode = 'zinc'
+            keys = ['logZmin', 'logZmax', 'logZstep', 'logZimin',
+                    'logZimax', 'logZfmin', 'logZfmax']
+        else:
+            mode = None
+            keys = ['logZmin', 'logZmax', 'logZstep']
+        items += zip(keys, vals)
+        n += 1
+
+        # Binary fraction and upper/lower bad fractions
+        keys = ['BF', 'Bad0', 'Bad1']
+        vals = [float(val) for val in lines[n].split()]
+        items += zip(keys, vals)
+        n += 1
+
+        # CMDs (part 1 of 2)
+        Ncmds = int(lines[n])
+        n += 1
+        CMDs, filternames = [], []
+        for i in range(Ncmds):
+            vals = lines[n].split()
+            Vname, Iname = vals[5].split(',')
+            filternames += [Vname, Iname]
+            CMDitems = [
+                ('Vstep', float(vals[0])),
+                ('VIstep', float(vals[1])),
+                ('fake_sm', int(vals[2])),
+                ('VImin', float(vals[3])),
+                ('VImax', float(vals[4])),
+                ('Vname', Vname),
+                ('Iname', Iname)
+                ]
+            CMDs.append(CMDitems)
+            n += 1
+
+        # Filter list
+        filters = []
+        while lines[n].split()[-1] in filternames:
+            vals = lines[n].split()
+            fdict = {'min': float(vals[0]), 'max': float(vals[1]), 'name': vals[2]}
+            filters.append(fdict)
+            n += 1
+        items.append(('filters', filters))
+
+        # Gate list
+        for i in range(Ncmds):
+            vals = lines[n].split()
+
+            Nexc = int(vals[0])
+            if Nexc > 0:
+                points = vals[1:Nexc*8+1]
+                gates = []
+                for j in range(Nexc):
+                    xy = [float(pnt) for pnt in points[j*8:(j+1)*8]]
+                    gates.append(zip(xy[0::2], xy[1::2]))
+                CMDs[i].append(('exclude_gates', gates))
+
+            vals = vals[Nexc*8+1]
+            Ncom = int(vals[0])
+            if Ncom > 0:
+                points = vals[1:Ncom*8+1]
+                gates = []
+                for j in range(Nexc):
+                    xy = [float(pnt) for pnt in points[j*8:(j+1)*8]]
+                    gates.append(zip(xy[0::2], xy[1::2]))
+                CMDs[i].append(('combine_gates', gates))
+
+            n += 1
+
+        # CMDs (part 2 of 2)
+        CMDs = [CMDParam(**dict(CMDitems)) for CMDitems in CMDs]
+        items.append(('CMDs', CMDs))
+
+        # Age bins
+        Ntbins = int(lines[n])
+        n += 1
+        bins = [tuple(line.split()) for line in lines[n:n+Ntbins]]
+        age1, age2, logZcentral, SFR = [], [], [], []
+        sfrcol = 3 if mode == 'setz' else 2
+        for vals in bins:
+            vals = [float(val) for val in vals]
+            age1.append(vals[0])
+            age2.append(vals[1])
+            if mode == 'setz':
+                logZcentral.append(vals[2])
+            else:
+                logZcentral.append(None)
+            if len(vals) == sfrcol+1:
+                SFR.append(vals[sfrcol])
+            else:
+                SFR.append(None)
+        agebins = age1 + [age2[-1]]
+        linage = True if agebins[0] < 0 else False
+        keys = ['agebins', 'linage', 'logZcentral', 'SFR']
+        vals = [agebins, linage, logZcentral, SFR]
+        items += zip(keys, vals)
+        n += Ntbins
+
+        # Background/foreground CMDs
+        Nbgcmds = len(lines) - n
+        if Nbgcmds > 0:
+            bgCMDs = []
+            for i in range(Nbgcmds):
+                vals = lines[n].split()
+                bgdict = {}
+                nbins = int(vals[1])
+                if nbins < 0:
+                    bgdict['cmdfile'] = True
+                    nbins *= -1
+                bgdict['nbins'] = nbins
+                bgdict['scale'] = float(vals[2]) if '.' in vals[2] else int(vals[2])
+                if len(vals) == 4:
+                    bgdict['filename'] = vals[3]
+                bgCMDs.append(bgdict)
+            items.append(('bgCMDs', bgCMDs))
+
+        items.append(('mode', mode))
+
+        return CalcsfhParam(**dict(items))
 
     def write(self, filename, formatter=None):
         """Write to a calcsfh parameter file.
@@ -383,22 +514,19 @@ class CalcsfhParam(object):
         ----------
         filename : str
             Absolute path to the output parameter file.
-        formatter : function, optional
+        formatter : CalcsfhParamFormatter or function, optional
             Any function that takes a parameter name (`key`) and a value
             (`val`) as the first and second arguments, and returns a string
-            representation of the value. If None (default), then the
-            returned value is ``str(val)``.
+            representation of the value. `CalcsfhParamFormatter` is used by
+            default.
 
         Returns
         -------
         None
 
         """
-        def default_formatter(key, val):
-            return str(val)
-
         if formatter is None:
-            formatter = default_formatter
+            formatter = CalcsfhParamFormatter()
 
         # IMF, dmod, Av parameters
         pars = ['IMF', 'dmodmin', 'dmodmax', 'step', 'Avmin', 'Avmax', 'step']
@@ -477,68 +605,88 @@ class CalcsfhParam(object):
             cmdfile = -1 if CMD.get('cmdfile') else 1
             nbins = formatter('nbins', cmdfile*CMD['nbins'])
             scale = formatter('scale', CMD['scale'])
-            filename = CMD.get('filename', '')
-            row = ['-1', nbins, scale, filename]
+            fname = CMD.get('filename', '')
+            row = ['-1', nbins, scale, fname]
             line = ' '.join(val for val in row if val)  # non-empty strs only
             # Space, or no space, between scale and filename?
             lines.append(line)
 
-        with open(filename, 'w') as f:
+        with __builtins__.open(filename, 'w') as f:
             f.writelines('{:s}\n'.format(line) for line in lines)
 
         return None
 
 
-def checkparam(obj):
-    return obj if isinstance(obj, Param) else Param(obj)
+class CalcsfhParamFormatter(object):
 
+    """Formatter to assist in writing calcsfh parameter files.
 
-def _parse_sfhfile(filename):
-    return None
+    The `CalcsfhParam.write` method formats each value in the output parameter
+    file using a formatter function that converts the value in a string
+    according to a unique identifier, or key. `CalcsfhParamFormatter` achieves
+    this using a suitable call method that takes a key and a value, looks up
+    the format string corresponding to the key, and then formats val. Each key
+    has a corresponding attribute in `CalcsfhParam`. The format strings may be
+    adjusted from their default values, shown in the Parameters section below.
 
+    Parameters
+    ----------
+    IMF : '{ :.2f}', optional
+    dmodmin : '{ :.2f}', optional
+    dmodmax : '{ :.2f}', optional
+    Avmin : '{ :.2f}', optional
+    Avmax : '{ :.2f}', optional
+    step : '{ :.2f}', optioanl
+    logZmin : '{ :.1f}', optional
+    logZmax : '{ :.1f}', optional
+    logZstep : '{ :.1f}', optional
+    logZimin : '{ :.1f}', optional
+    logZimax : '{ :.1f}', optional
+    logZfmin : '{ :.1f}', optional
+    logZfmax : '{ :.1f}', optional
+    logZspread : '{ :.1f}', optional
+    BF : '{ :.2f}', optional
+    Bad0 : '{ :.6f}', optional
+    Bad1 : '{ :.6f}', optional
+    Ncmds : '{ :d}', optional
+    Vstep : '{ :.2f}', optional
+    VIstep : '{ :.2f}', optional
+    fake_sm : '{ :d}', optional
+    VImin : '{ :.2f}', optional
+    VImax : '{ :.2f}', optional
+    Vname : '{ :s}', optional
+    Iname : '{ :s}', optional
+    min : '{ :.2f}', optional
+    max : '{ :.2f}', optional
+    name : '{ :s}', optional
+    Nexclude_gates : '{ :d}', optional
+    exclude_gates : '{ :.2f}', optional
+    Ncombine_gates : '{ :d}', optional
+    combine_gates : '{ :.2f}', optional
+    Ntbins : '{ :d}', optional
+    To : '{ :.2f}', optional
+    Tf : '{ :.2f}', optional
+    logZcentral : '{ :.1f}', optional
+    SFR : '{ :.3e}', optional
+    nbins : '{ :d}', optional
+    scale : '{ :d}', optional
+    filename : '{ :s}', optional
 
-def _parse_cmdfile(filename):
-    return None
+    Attributes
+    ----------
+    fmt_dict : dict
+        Dictionary of format strings for all values in a calcsfh parameter
+        file.
 
+    Methods
+    -------
+    __call__
+        Format `val` according to the format string corresponding to `key`.
 
-def _parse_zcbfile(filename):
-    return None
+    """
 
-
-def open(filename, kind=None):
-    return None
-
-
-
-
-
-# read/write zcombine parameter file
-
-V = dict(name='WFC475W', min=16.00, max=27.00)
-I = dict(name='WFC814W', min=15.00, max=26.20)
-filters = [V, I]
-
-gate_x = [1.25, 5.00, 5.00, 1.25]
-gate_y = [27.00, 27.00, 21.00, 21.00]
-CMD = CMDParam(Vname='WFC475W', Iname='WFC814W', Vstep=0.10, VImin=-0.50,
-               VImax=5.00, VIstep=0.05, fake_sm=5,
-               exclude_gates=zip(gate_x, gate_y))
-
-logages1 = np.linspace(6.60, 9.00, (9.00-6.60)/0.05+1)
-logages2 = np.linspace(9.10, 10.10, (10.10-9.10)/0.10+1)
-agebins = np.hstack((logages1, logages2))
-
-param = CalcsfhParam(
-        IMF='Salpeter',
-        dmodmin=24.47, dmodmax=24.47, Avmin=0.45, Avmax=0.45, step=0.05,
-        logZmin=-2.3, logZmax=0.1, logZstep=0.1,
-        logZimin=-2.3, logZimax=-0.9, logZfmin=-1.4, logZfmax=0.1,
-        BF=0.35, Bad0=1e-6, Bad1=1e-6,
-        CMDs=CMD, filters=filters, agebins=agebins, mode='zinc')
-
-
-def custom_formatter(key, val):
-    fmt_dict = {
+    def __init__(self, **kwargs):
+        fmt_dict = {
             'IMF': '{:.2f}',
             'dmodmin': '{:.2f}',
             'dmodmax': '{:.2f}',
@@ -554,8 +702,8 @@ def custom_formatter(key, val):
             'logZfmax': '{:.1f}',
             'logZspread': '{:.1f}',
             'BF': '{:.2f}',
-            'Bad0': None,
-            'Bad1': None,
+            'Bad0': '{:.6f}',
+            'Bad1': '{:.6f}',
             'Ncmds': '{:d}',
             'Vstep': '{:.2f}',
             'VIstep': '{:.2f}',
@@ -580,27 +728,80 @@ def custom_formatter(key, val):
             'scale': '{:d}',
             'filename': '{:s}',
             }
-    if key in ['Bad0', 'Bad1']:
-        n = abs(int(np.log10(val)))  # the expoonent is negative
-        result = '{1:{0}f}'.format(n, val)
-    else:
-        result = fmt_dict[key].format(val)
+        for key, val in kwargs.items():
+            if key in fmt_dict:
+                fmt_dict[key] = val
 
-    return result
+    def __call__(self, key, val):
+        """Format `val` according to the format string corresponding to
+        `key`.
+
+        Parameters
+        ----------
+        key : str
+            The key corresponding to the format string in `fmt_dict`.
+        val :
+            The value to be formatted.
+
+        Returns
+        -------
+        str
+            The formatted value.
+
+        """
+        return self.fmt_dict[key].format(val)
+
+
+def _parse_sfhfile(filename):
+    return None
+
+
+def _parse_cmdfile(filename):
+    return None
+
+
+def _parse_zcbfile(filename):
+    return None
+
+
+def open(filename, kind=None):
+    return None
 
 
 
 
-fmt = '{:.2f}'
-(cp.CMD[0].V.min, cp.CMD[0].V.max,
-cp.CMD[0].I.min, cp.CMD[0].I.max,
-cp.CMD[0].Vstep,
-cp.CMD[0].cmin, cp.CMD[0].cmax, cp.CMD[0].cstep,
-cp.CMD[0].exclude_gates[0],
-cp.IMF, cp.dmod, cp.Av, cp.step, cp.logZ, cp.BF, cp.badfrac,
-cp.tbins)
+
+# read/write zcombine parameter file
 
 
+def test():
+    V = dict(name='WFC475W', min=16.00, max=27.00)
+    I = dict(name='WFC814W', min=15.00, max=26.20)
+    filters = [V, I]
 
+    gate_x = [1.25, 5.00, 5.00, 1.25]
+    gate_y = [27.00, 27.00, 21.00, 21.00]
+    CMD = CMDParam(Vname='WFC475W', Iname='WFC814W', Vstep=0.10, VImin=-0.50,
+                   VImax=5.00, VIstep=0.05, fake_sm=5,
+                   exclude_gates=zip(gate_x, gate_y))
+
+    logages1 = np.linspace(6.60, 9.00, (9.00-6.60)/0.05+1)
+    logages2 = np.linspace(9.10, 10.10, (10.10-9.10)/0.10+1)
+    agebins = np.hstack((logages1, logages2))
+
+    param = CalcsfhParam(
+            IMF='Salpeter',
+            dmodmin=24.47, dmodmax=24.47, Avmin=0.45, Avmax=0.45, step=0.05,
+            logZmin=-2.3, logZmax=0.1, logZstep=0.1,
+            logZimin=-2.3, logZimax=-0.9, logZfmin=-1.4, logZfmax=0.1,
+            BF=0.35, Bad0=1e-6, Bad1=1e-6,
+            CMDs=CMD, filters=filters, agebins=agebins, mode='zinc')
+
+    param.write('/Users/Jake/Desktop/testpar.par')
+
+
+if __name__ == '__main__':
+    pass
+    #test()
 
 
