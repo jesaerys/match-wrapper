@@ -138,11 +138,12 @@ def calcsfh(paramfile, photfile, fakefile, sfhfile, **kwargs):
     Most command line flags in the MATCH 2.5 README have a corresponding
     keyword argument in the call signature. Mutually exclusive options,
     such as certain mode flags and flags for model and transformation
-    selections, are available as values for the `mode`, `model`, and
-    `transformation` keywords.
+    selections, are instead available as values for the `mode`, `model`,
+    and `transformation` keywords.
 
-    The keyword arguments default to None, or False if boolean, unless
-    stated otherwise.
+    All keyword arguments are None by default unless stated otherwise.
+    Flag-related arguments set to None are not included in the command
+    string.
 
     Parameters
     ----------
@@ -185,22 +186,21 @@ def calcsfh(paramfile, photfile, fakefile, sfhfile, **kwargs):
     mbolerrsig : float, optional
     model : {None, 'BASTInov', 'BASTI', 'BASTI02nov', 'BASTI02', 'DART',
             'PADUA00', 'PADUA06', 'VICTORIA', 'VICTORIASS'}, optional
-        Override the default stellar evolution model. Default is Padua 2006
-        with C/O ratio support.
+        Override the default stellar evolution model.
     alpha : {-0.2, 0, 0.2, 0.2}, optional
     transformation : {None, 'BASTInov', 'BASTI', 'BASTI02nov', 'BASTI02',
             'DART', 'PADUA00', 'PADUA06', 'VICTORIA', 'VICTORIASS'},
             optional
-        Override the default transformation for the selected model. Default
-        is to use the "new" Girardi transformations.
+        Override the default transformation for the selected model.
     formatter : FlagFormatter or function, optional
         Any function that takes a flag name (`key`) and a value (`val`) as
         the first and second arguments, and returns a string representation
         of the value. Formatting for multivalued flags (e.g., `diskAv`)
         need to be handled as well. `FlagFormatter` is used by default.
     norun : bool, optional
-        Do not actually run calcsfh if True, just return the command
-        string. This is useful for checking the command before running it.
+        If True, calcsfh is not actually run and the command string is
+        returned instead. This is useful for checking the command before
+        running it.
 
     Returns
     -------
@@ -265,28 +265,39 @@ def calcsfh(paramfile, photfile, fakefile, sfhfile, **kwargs):
     return result
 
 
-def hybridMC(inputfile, outputfile, **kwargs):
+def hybridMC(hmcdatfile, hmcsfhfile, **kwargs):
     """hybridMC wrapper.
 
-    ***Most command line flags in the MATCH 2.5 README have a corresponding
-    keyword argument in the call signature. Mutually exclusive options,
-    such as certain mode flags and flags for model and transformation
-    selections, are available as values for the `mode`, `model`, and
-    `transformation` keywords.
+    All command line flags in the MATCH 2.5 README have a corresponding
+    keyword argument in the call signature.
 
-    ***The keyword arguments default to None, or False if boolean, unless
-    stated otherwise.
+    All keyword arguments are None by default unless stated otherwise.
+    Flag-related arguments set to None are not included in the command
+    string.
 
     Parameters
     ----------
+    hmcdatfile : str
+        Path to the binary ".dat" file output by calcsfh in 'mcdata' mode.
+    hmcsfhfile : str
+        Path to the SFH output file.
+    outfile : str, optional
+        Path to a file to capture stdout.
+    dt : float, optional
+    keepall : bool, optional
+    nburn : int, optional
+    nmc : int, optional
+    nt : int, optional
+    pscape : float, optional
+    tint : float, optional
     formatter : FlagFormatter or function, optional
         Any function that takes a flag name (`key`) and a value (`val`) as
         the first and second arguments, and returns a string representation
-        of the value. ***Formatting for multivalued flags (e.g., `diskAv`)
-        need to be handled as well. `FlagFormatter` is used by default.
+        of the value. `FlagFormatter` is used by default.
     norun : bool, optional
-        Do not actually run hybridMC if True, just return the command
-        string. This is useful for checking the command before running it.
+        If True, hybridMC is not actually run and the command string is
+        returned instead. This is useful for checking the command before
+        running it.
 
     Returns
     -------
@@ -295,7 +306,31 @@ def hybridMC(inputfile, outputfile, **kwargs):
         otherwise the return value is None.
 
     """
-    return None
+    cmd = 'hybridMC {0:s} {1:s}'.format(hmcsfhfile, hmcdatfile)
+
+    flag_list = ['dt', 'keepall', 'nburn', 'nmc', 'nt', 'pscape', 'tint']
+
+    # Flag strings
+    formatter = kwargs.get('formatter', FlagFormatter())
+    flagstr_gen = (formatter(flag, kwargs.get(flag)) for flag in flag_list)
+    flagstr_list = [flagstr for flagstr in flagstr_gen if flagstr]  # filter out None
+    if flagstr_list:
+        cmd = '{0:s} {1:s}'.format(cmd, ' '.join(flagstr_list))
+
+    # stdout file
+    outfile = kwargs.get('outfile')
+    if outfile:
+        cmd = '{0:s} > {1:s}'.format(cmd, outfile)
+
+    norun = kwargs.get('norun')
+    if norun:
+        result = cmd
+    else:
+        # Run hybridMC
+        subprocess.call(cmd, shell=True)
+        time.sleep(5)  # Finish writing potentially large output files
+        result = None
+    return result
 
 
 def zcombine():
