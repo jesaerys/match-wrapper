@@ -4,6 +4,24 @@
 `match_wrapper.io`
 ==================
 
+One liner.
+
+Description.
+
+classes
+-------
+
+======================= ==================================
+`CMDParam`              Class
+`CalcsfhParam`          Class
+`CalcsfhParamFormatter` Class for storing CMD information.
+======================= ==================================
+
+
+functions
+---------
+
+
 """
 import numpy as np
 
@@ -12,37 +30,34 @@ class CMDParam(object):
 
     """Class for storing CMD information.
 
-    The name of a parameter in the MATCH 2.5 README is quoted if it differs
-    from the corresponding property or attribute name below.
+    Most parameter and attribute names are taken from the MATCH 2.5 README.
+    The name from the MATCH 2.5 README is given in quotes if the parameter
+    or attribute name is different.
+
+    Each parameter initializes a corresponding attribute and defaults to
+    None unless stated otherwise.
 
     Parameters
     ----------
     Vname : str, optional
-        Initialize the `Vname` attribute. Default is None.
     Iname : str, optional
-        Initialize the `Iname` attribute. Default is None.
     Vstep : float, optional
-        Initialize the `Vstep` attribute. Default is None.
     VImin : float, optional
-        Initialize the `VImin` attribute. Default is None.
     VImax : float, optional
-        Initialize the `VImax` attribute. Default is None.
     VIstep : float, optional
-        Initialize the `VIstep` attribute. Default is None.
     fake_sm : int, optional
-        Initialize the `fake_sm` attribute. Default is None.
     exclude_gates : list, optional
-        Initialize the `exclude_gates` attribute. Default is an empty list.
+        Default is an empty list.
     combine_gates : list, optional
-        Initialize the `combine_gates` attribute. Default is an empty list.
+        Default is an empty list.
 
     Attributes
     ----------
     Vname : str
-        "V"; `CalcsfhParam.filters` must have a filter dictionary with the
+        "V". `CalcsfhParam.filters` must have a filter dictionary with the
         same name.
     Iname : str
-        "I"; `CalcsfhParam.filters` must have a filter dictionary with the
+        "I". `CalcsfhParam.filters` must have a filter dictionary with the
         same name.
     Vstep : float
     VImin : float
@@ -113,69 +128,59 @@ class CalcsfhParam(object):
 
     """Class for storing calcsfh parameter file information.
 
-    The name of a parameter in the MATCH 2.5 README is quoted if it differs
-    from the corresponding property or attribute name below.
+    Most parameter and attribute names are taken from the MATCH 2.5 README.
+    The name from the MATCH 2.5 README is given in quotes if the parameter
+    or attribute name is different.
+
+    Each parameter initializes a corresponding attribute and defaults to
+    None unless stated otherwise.
 
     Parameters
     ----------
     IMF : {None, 'Kroupa', 'Salpeter', float}, optional
-        Initialize the `IMF` attribute. 'Kroupa' is equivalent to -1.0,
-        'Salpeter' is equivalent to 1.35. Default is None.
+        'Kroupa' is equivalent to -1.0, 'Salpeter' is equivalent to 1.35.
     dmodmin : float, optional
-        Initialize the `dmodmin` attribute. Default is None.
     dmodmax : float, optional
-        Initialize the `dmodmax` attribute. Default is None.
     Avmin : float, optional
-        Initialize the `Avmin` attribute. Default is None.
     Avmax : float, optional
-        Initialize the `Avmax` attribute. Default is None.
     step : float, optional
-        Initialize the `step` attribute. Default is None.
     logZmin : float, optional
-        Initialize the `logZmin` attribute; see `mode`. Default is None.
+        See `mode`.
     logZmax : float, optional
-        Initialize the `logZmax` attribute; see `mode`. Default is None.
+        See `mode`.
     logZstep : float, optional
-        Initialize the `logZstep` attribute; see `mode`. Default is None.
+        See `mode`.
     logZimin : float, optional
-        Initialize the `logZimin` attribute; see `mode`. Default is None.
+        See `mode`.
     logZimax : float, optional
-        Initialize the `logZimax` attribute; see `mode`. Default is None.
+        See `mode`.
     logZfmin : float, optional
-        Initialize the `logZfmin` attribute; see `mode`. Default is None.
+        See `mode`.
     logZfmax : float, optional
-        Initialize the `logZfmax` attribute; see `mode`. Default is None.
+        See `mode`.
     logZspread : float, optional
-        Initialize the `logZspread` attribtue; see `mode`. Default is None.
+        See `mode`.
     BF :  float, optional
-        Initialize the `BF` attribute. Default is None.
     Bad0 : float, optional
-        Initialize the `Bad0` attribute. Default is None.
     Bad1 : float, optional
-        Initialize the `Bad1` attribute. Default is None.
     CMDs : CMDParam or list, optional
-        Initialize the `CMDs` attribute. The list should contain one or
-        more `CMDParam` instances. A single `CMDParam` instance is
-        converted to a length-1 list. Default is None.
+        A `CMDParam` instance, or a list of one or more `CMDParam`
+        instances. Default is an empty list.
     filters : list, optional
-        Initialize the `filters` attribute. The list should contain
-        dictionaries for the filters referenced by the CMDs in `CMDs`.
-        Default is an empty list.
+        A list of dictionaries for the filters referenced by the `CMDParam`
+        instances in `CMDs`. Default is an empty list.
     agebins : list, optional
-        Initialize the `agebins` attribute. Default is an empty list.
+        Default is an empty list.
     linage : bool, optional
-        Initialize the `linage` attribute. Default is False.
+        Default is False.
     logZcentral : list, optional
-        Initialize the `logZcentral` attribute. Default is a list of length
-        ``len(agebins)-1`` where each element is None.
+        Default is a list of length `Ntbins` where each element is None.
     SFR : list, optional
-        Initialize the `SFR` attribute. Default is a list of length
-        ``len(agebins)-1`` where each element is None.
+        Default is a list of length `Ntbins` where each element is None.
     bgCMDs : list, optional
-        Initialize the `bgCMDs` attribute. The list should contain one
-        dictionary for each background CMD. Default is an empty list.
+        A list of dictionaries, one for each background/foreground CMD.
+        Default is an empty list.
     mode : {None, 'zinc', 'setz'}, optional
-        Initialize the `mode` attribute. Default is None.
 
     Attributes
     ----------
@@ -210,8 +215,8 @@ class CalcsfhParam(object):
     CMDs : list
         List of `CMDParam` instances, one per CMD.
     filters : list
-        List of filters referenced by the CMDs in `CMDs`. Each filter is a
-        dictionary containing the keys,
+        List of filters referenced by the `CMDParam` instances in `CMDs`.
+        Each filter is a dictionary containing the keys,
 
         - 'name': "V" or "I"
         - 'min': Bright magnitude limit; "Vmin" or "Imin"
@@ -224,37 +229,38 @@ class CalcsfhParam(object):
         depending on `linage`). The ith and i+1th elements correspond to
         "To" (youngest edge) and "Tf" (oldest edge) of the ith age bin.
     linage : bool
-        If True, values in `agebins` are linear years. Default is False
-        (log10).
+        True if the `agebins` values are in linear years, False if the
+        values are ``log10(age/yr)``.
     logZcentral : list
         Central metallicity values of the age bins for 'setz' mode; see
         `mode`. The ith value corresponds to the ith age bin, and a value
-        must be specified for each age bin. Length is ``len(agebins) - 1``.
+        must be specified for each age bin. Length is `Ntbins`.
     SFR : list
         Force the SFR in particular age bins to the values in this list.
         The ith element corresponds to the ith age bin, and, if not None,
         appears in the parameter file as the last number in the line for
         the age bin. SFR is only fixed where the value in the list is not
-        None.
+        None. Length is `Ntbins`.
 
         .. note:: This feature is not documented in the MATCH 2.5 README!
 
     bgCMDs : list
-        List of background CMD dictionaries. Each dictionary contains the
-        keys,
+        List of background/foreground CMD dictionaries. Each dictionary
+        contains the keys,
 
-        - 'nbins': Size of the smoothing kernel
+        - 'nbins': Size of the smoothing kernel.
         - 'scale': Set the scaling for the background CMD. If negative, a
           variable number of stars is used.
         - 'filename': Optional; path to the file containing the background
           CMD data. If None (default), a smoothed version of the observed
           CMD is used.
-        - 'cmdfile': Optional; True if 'filename' is formatted like a .cmd
-          file output by calcsfh. Default is False, i.e., 'filename' is
-          like a two-column input photometry file for calcsfh.
+        - 'cmdfile': Optional; True if 'filename' is formatted like a
+          ".cmd" file output by calcsfh. Default is False, i.e., 'filename'
+          has two-columns like an input photometry file for calcsfh.
 
     mode : str
-        The following attributes are required or ignored depending on the mode:
+        The following attributes are either required or ignored depending
+        on the mode:
 
         None (default):
 
@@ -286,7 +292,7 @@ class CalcsfhParam(object):
         Property (get only). One less than the length of the `agebins` list
         (length of `To` and `Tf`).
     read
-        Return a `CalcsfhParam` instance from a calcsfh parameter file.
+        Create a `CalcsfhParam` instance from a calcsfh parameter file.
     write
         Write to a calcsfh parameter file.
 
@@ -357,7 +363,7 @@ class CalcsfhParam(object):
         return l if l>0 else 0
 
     def read(self, filename):
-        """Create a CalcsfhParam instance from a calcsfh parameter file.
+        """Create a `CalcsfhParam` instance from a calcsfh parameter file.
 
         Parameters
         ----------
@@ -592,8 +598,8 @@ class CalcsfhParam(object):
         # Age bins
         linage = -1 if self.linage else 1
         for i in range(self.Ntbins):
-            edge1 = formatter('To', linage*self.agebins[i])
-            edge2 = formatter('Tf', linage*self.agebins[i+1])
+            edge1 = formatter('To', linage*self.To[i])
+            edge2 = formatter('Tf', linage*self.Tf[i])
             logZc = formatter('logZcentral', self.logZcentral[i]) if self.mode == 'setz' else ''
             SFR = formatter('SFR', self.SFR[i]) if self.SFR[i] else ''
             row = [edge1, edge2, logZc, SFR]
@@ -621,13 +627,13 @@ class CalcsfhParamFormatter(object):
 
     """Formatter to assist in writing calcsfh parameter files.
 
-    The `CalcsfhParam.write` method formats each value in the output parameter
-    file using a formatter function that converts the value in a string
-    according to a unique identifier, or key. `CalcsfhParamFormatter` achieves
-    this using a suitable call method that takes a key and a value, looks up
-    the format string corresponding to the key, and then formats val. Each key
-    has a corresponding attribute in `CalcsfhParam`. The format strings may be
-    adjusted from their default values, shown in the Parameters section below.
+    The `CalcsfhParam.write` method formats each value in the output
+    parameter file using a formatter function that takes a key and a value
+    and returns a string. `CalcsfhParamFormatter` has a call method that
+    looks up a format string based on the key, and uses it to format the
+    value. Each key has a corresponding attribute in `CalcsfhParam`. The
+    format strings may be adjusted from their default values, shown in the
+    Parameters section below.
 
     Parameters
     ----------
@@ -681,7 +687,7 @@ class CalcsfhParamFormatter(object):
     Methods
     -------
     __call__
-        Format `val` according to the format string corresponding to `key`.
+        Return a string for the given key and value.
 
     """
 
@@ -733,13 +739,12 @@ class CalcsfhParamFormatter(object):
                 fmt_dict[key] = val
 
     def __call__(self, key, val):
-        """Format `val` according to the format string corresponding to
-        `key`.
+        """Return a string for the given key and value.
 
         Parameters
         ----------
         key : str
-            The key corresponding to the format string in `fmt_dict`.
+            The key corresponding to a format string in `fmt_dict`.
         val :
             The value to be formatted.
 

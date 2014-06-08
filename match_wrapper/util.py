@@ -7,4 +7,9 @@
 """
 # function to process large hybridMC output into separate .sfh or .zcb files.
 
+# function to process large hybridMC output file into SFR PDF vs. time? A
+# file with this data would be much more portable than the full data set
+# output from MATCH - one would only need to sample the PDF evolution to
+# build up a set of HMC SFHs.
+
 # search stuff?
