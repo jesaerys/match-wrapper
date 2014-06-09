@@ -13,3 +13,10 @@
 # build up a set of HMC SFHs.
 
 # search stuff?
+#
+# It might be useful to rewrite UV_Regions/project/sfh/runcaclsfh.py,
+# putting as much of the logging and search functionality in this module
+# as possible. The updated runcalcsfh.py could then be an example script of
+# how to use the match-wrapper package.
+#
+# How much of the searching can be handled by scipy.optimize?
