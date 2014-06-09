@@ -4,25 +4,35 @@
 `match_wrapper.io`
 ==================
 
-One liner.
+I/O for MATCH-related files.
 
-Description.
-
-classes
+Classes
 -------
 
-======================= ==================================
-`CMDParam`              Class
-`CalcsfhParam`          Class
-`CalcsfhParamFormatter` Class for storing CMD information.
-======================= ==================================
+======================= ==================================================
+`CMDParam`              Class for storing CMD information.
+`CalcsfhParam`          Class for storing calcsfh parameter file
+                        information.
+`CalcsfhParamFormatter` Formatter to assist in writing calcsfh parameter
+                        files.
+======================= ==================================================
 
 
-functions
+Functions
 ---------
 
+====================== ====================================================
+`open_cmdfile`         Load data from a calcsfh ".cmd" file.
+`open_zcbfile`         Load a zcombine/zcmerge output file into an
+                       `astropy.table.Table`.
+`write_zcbfile`        Write a zcombine/zcmerge output file from an
+                       `astropy.table.Table`.
+`write_zcombine_param` Write a zcombine parameter file for a given set of
+                       age bin edges.
+====================== ====================================================
 
 """
+from astropy.table import Table
 import numpy as np
 
 
@@ -117,10 +127,12 @@ class CMDParam(object):
 
     @property
     def Nexclude_gates(self):
+        """Property (get only). Length of the `exclude_gates` list."""
         return len(self.exclude_gates)
 
     @property
     def Ncombine_gates(self):
+        """Property (get only). Length of the `combine_gates` list."""
         return len(self.combine_gates)
 
 
@@ -137,8 +149,9 @@ class CalcsfhParam(object):
 
     Parameters
     ----------
-    IMF : {None, 'Kroupa', 'Salpeter', float}, optional
-        'Kroupa' is equivalent to -1.0, 'Salpeter' is equivalent to 1.35.
+    IMF : float or str, optional
+        Valid string values are 'Kroupa', 'Salpeter', which are equivalent
+        to -1.0 and 1.35, respectively.
     dmodmin : float, optional
     dmodmax : float, optional
     Avmin : float, optional
@@ -202,11 +215,11 @@ class CalcsfhParam(object):
     logZimin : float
         Minimum initial (oldest age) metallicity for 'zinc' mode; see `mode`.
     logZimax : float
-        Maximum initial (oldest age) metallicity for 'zinc'; see `mode`.
+        Maximum initial (oldest age) metallicity for 'zinc' mode; see `mode`.
     logZfmin : float
-        Minimum final (youngest age) metallicity for 'zinc'; see `mode`.
+        Minimum final (youngest age) metallicity for 'zinc' mode; see `mode`.
     logZfmax : float
-        Maximum final (youngest age) metallicity for 'zinc'; see `mode`.
+        Maximum final (youngest age) metallicity for 'zinc' mode; see `mode`.
     logZspread : float
         Metallicity spread for 'setz' mode; see `mode`.
     BF : float
@@ -255,8 +268,9 @@ class CalcsfhParam(object):
           CMD data. If None (default), a smoothed version of the observed
           CMD is used.
         - 'cmdfile': Optional; True if 'filename' is formatted like a
-          ".cmd" file output by calcsfh. Default is False, i.e., 'filename'
-          has two-columns like an input photometry file for calcsfh.
+          ".cmd" file output by calcsfh. Default is False, i.e.,
+          'filename' has two-columns like an input photometry file for
+          calcsfh.
 
     mode : str
         The following attributes are either required or ignored depending
@@ -347,18 +361,25 @@ class CalcsfhParam(object):
 
     @property
     def Ncmds(self):
+        """Property (get only). Length of the `CMDs` list."""
         return len(self.CMDs)
 
     @property
     def To(self):
+        """Property (get only)."""
         return self.agebins[:-1]
 
     @property
     def Tf(self):
+        """Property (get only)."""
         return self.agebins[1:]
 
     @property
     def Ntbins(self):
+        """Property (get only). One less than the length of the `agebins`
+        list (length of `To` and `Tf`).
+        
+        """
         l = len(self.agebins)-1
         return l if l>0 else 0
 
@@ -617,7 +638,7 @@ class CalcsfhParam(object):
             # Space, or no space, between scale and filename?
             lines.append(line)
 
-        with __builtins__.open(filename, 'w') as f:
+        with open(filename, 'w') as f:
             f.writelines('{:s}\n'.format(line) for line in lines)
 
         return None
@@ -757,56 +778,221 @@ class CalcsfhParamFormatter(object):
         return self.fmt_dict[key].format(val)
 
 
-def _parse_sfhfile(filename):
+def open_cmdfile(filename):
+    """Load data from a calcsfh ".cmd" file.
+
+    Parameters
+    ----------
+    filename : str
+        Path to a calcsfh ".cmd" file.
+
+    Returns
+    -------
+    tuple
+        The returned tuple contains the following:
+
+        - Edges of the CMD magnitude bins (1d array)
+        - Edges of the CMD color bins (1d array)
+        - Hess diagram of the observed CMD (2d array)
+        - Modeled Hess diagram (2d array)
+        - Residual Hess diagram; obs - mod (2d array)
+        - Residual significance Hess diagram (2d array)
+
+    Notes
+    -----
+    The residual significance is based on::
+
+      (Nobs - Nmodel) / sigma
+
+    except that it uses the correct Poisson-based formulation::
+
+      sqrt(2*(Nmodel - Nobs + Nobs*ln(Nobs/Nmodel)))
+
+    and is multiplied by -1 if Nmodel > Nobs to match the sense of the
+    first equation. In the case where Nobs=0, it is::
+
+      - sqrt(2 * Nmodel)
+
+    """
+    with open(filename, 'r') as f:
+        f.readline()  # Skip
+
+        # Number of bins
+        line = f.readline().split()
+        nmag, ncol = int(line[0]), int(line[1])
+
+        f.readline()  # Skip
+        f.readline()  # Skip
+
+        # CMD data
+        row_list = [row.split() for row in f]
+
+    col_list = zip(*row_list)
+
+    magbins = np.array(col_list[0], 'float')[::nmag]  # Bin centers
+    dmag = magbins[1] - magbins[0]
+    mag1, mag2 = magbins[0] - dmag/2.0, magbins[-1] + dmag/2.0
+    magbins = np.linspace(mag1, mag2, (mag2-mag1)/dmag+1)  # Bin edges
+
+    colbins = np.array(col_list[1], 'float')[:ncol]  # Bin centers
+    dcol = colbins[1]-colbins[0]
+    col1, col2 = colbins[0] - dcol/2.0, colbins[-1] + dcol/2.0
+    colbins = np.linspace(col1, col2, (col2-col1)/dcol+1)  # Bin edges
+
+    obs_arr = np.array(col_list[2], 'float').reshape((nmag, ncol))
+    mod_arr = np.array(col_list[3], 'float').reshape((nmag, ncol))
+    res_arr = np.array(col_list[4], 'float').reshape((nmag, ncol))
+    sig_arr = np.array(col_list[5], 'float').reshape((nmag, ncol))
+
+    return magbins, colbins, obs_arr, mod_arr, res_arr, sig_arr
+
+
+def open_zcbfile(filename):
+    """Load a zcombine/zcmerge output file into an `astropy.table.Table`.
+
+    Parameters
+    ----------
+    filename : str
+        Path to a zcombine or zcmerge file.
+
+    Returns
+    -------
+    astropy.table.Table
+        See Notes for the columns.
+
+    Notes
+    -----
+    The columns in the output table are,
+
+    ========== ======= ======================================================
+    columns    units   description
+    ========== ======= ======================================================
+    log(age_i)         Log age/yr of the young (most recent) edge of each
+                       bin
+    log(age_f)         Log age/yr of the old edge of each bin.
+    dmod               Distance modulus
+    SFR        Msun/yr Star formation rate
+    SFR_eu     Msun/yr Upper error for SFR
+    SFR_el     Msun/yr Lower error for SFR
+    [M/H]              Metallicity, where the solar value is [M/H] = 0 [1]_
+    [M/H]_eu           Upper error for [M/H]
+    [M/H]_el           Lower error for [M/H]
+    d[M/H]             Metallicity spread
+    d[M/H]_eu          Upper error for d[M/H]
+    d[M/H]_el          Lower error for d[M/H]
+    CSF                Cumulative mass formed as a fraction of total mass
+    CSF_eu             Upper error for CSF
+    CSF_el             Lower error for CSF
+    ========== ======= ======================================================
+
+    .. [1] The MATCH README uses "logZ" for metallicity, but Z is typically
+       reserved for metal abundance, for which the solar value is 0.02.
+
+    """
+    names = ['log(age_i)', 'log(age_f)', 'dmod',
+             'SFR', 'SFR_eu', 'SFR_el',
+             '[M/H]', '[M/H]_eu', '[M/H]_el',
+             'd[M/H]', 'd[M/H]_eu', 'd[M/H]_el',
+             'CSF', 'CSF_eu', 'CSF_el']
+    dtypes = ['float'] * 15
+
+    data = []
+    with open(filename, 'r') as f:
+        for row in f:
+            row = row.split()
+            if row:  # Skip blank lines
+                try:
+                    float(row[0])
+                except ValueError:  # Header line
+                    continue
+                data.append(row)
+    table = Table(zip(*data), names=names, dtype=dtypes)
+    return table
+
+
+def write_zcbfile(table, filename):
+    """Write a zcombine/zcmerge output file from an `astropy.table.Table`.
+
+    `Table` instances have a `write` method which could be used directly,
+    but this function uses the 'ascii.no_header' format and the appropriate
+    format strings so that the resulting file looks like it was produced by
+    zcmerge.
+
+    Parameters
+    ----------
+    table : astropy.table.Table
+        `Table` instance containting SFH data.
+    filename : str
+        Path to the output file.
+
+    Returns
+    -------
+    None
+
+    """
+    formats = ['{:.2f}', '{:.2f}', '{:.2f}',
+               '{:.4e}', '{:.4e}', '{:.4e}',
+               '{:.3f}', '{:.3f}', '{:.3f}',
+               '{:.3f}', '{:.3f}', '{:.3f}',
+               '{:.4f}', '{:.4f}', '{:.4f}'
+               ]
+
+    old_formats = [col.format for col in table.columns.values()]
+
+    for col, fmt in zip(table.columns.values(), formats):
+        col.format = fmt
+    table.write(filename, format='ascii.no_header')
+
+    # Restore original formats
+    for col, fmt in zip(table.columns.values(), old_formats):
+        col.format = fmt
+
     return None
 
 
-def _parse_cmdfile(filename):
+def write_zcombine_param(input_edges, output_edges, filename):
+    """Write a zcombine parameter file for a given set of age bin edges.
+
+    Parameters
+    ----------
+    input_edges : array
+        Values of the edges of the input age bins.
+    output_edges : array
+        Values of the edges of the desired output age bins. The ends of
+        this array are automatically trimmed so that the first and last
+        values match the first and last values of `input_edges`.
+    filename : str
+        Path to the output zcombine parameter file.
+
+    Returns
+    -------
+    None
+
+    """
+    # Last value where output_edges is less than the first input edge,
+    # first value where output_edges is greater than the last input edge
+    test = np.where(output_edges < input_edges[0])[0]
+    if test.size:
+        i = test[-1]
+    else:
+        i = None
+    test = np.where(output_edges > input_edges[-1])[0]
+    if test.size:
+        j = test[0] + 1
+    else:
+        j = None
+
+    if i or j:
+        # Match the first and last edges
+        output_edges = output_edges[i:j]
+        output_edges[0], output_edges[-1] = input_edges[0], input_edges[-1]
+
+    nbins = len(output_edges) - 1
+    idx = np.digitize(inpit_edges, output_edges) - 1
+
+    with open(filename, 'w') as f:
+        f.write('{:d}\n'.format(nbins))
+        for i in idx:
+            f.write('{:d}\n'.format(i))
+
     return None
-
-
-def _parse_zcbfile(filename):
-    return None
-
-
-def open(filename, kind=None):
-    return None
-
-
-
-
-
-# read/write zcombine parameter file
-
-
-def test():
-    V = dict(name='WFC475W', min=16.00, max=27.00)
-    I = dict(name='WFC814W', min=15.00, max=26.20)
-    filters = [V, I]
-
-    gate_x = [1.25, 5.00, 5.00, 1.25]
-    gate_y = [27.00, 27.00, 21.00, 21.00]
-    CMD = CMDParam(Vname='WFC475W', Iname='WFC814W', Vstep=0.10, VImin=-0.50,
-                   VImax=5.00, VIstep=0.05, fake_sm=5,
-                   exclude_gates=zip(gate_x, gate_y))
-
-    logages1 = np.linspace(6.60, 9.00, (9.00-6.60)/0.05+1)
-    logages2 = np.linspace(9.10, 10.10, (10.10-9.10)/0.10+1)
-    agebins = np.hstack((logages1, logages2))
-
-    param = CalcsfhParam(
-            IMF='Salpeter',
-            dmodmin=24.47, dmodmax=24.47, Avmin=0.45, Avmax=0.45, step=0.05,
-            logZmin=-2.3, logZmax=0.1, logZstep=0.1,
-            logZimin=-2.3, logZimax=-0.9, logZfmin=-1.4, logZfmax=0.1,
-            BF=0.35, Bad0=1e-6, Bad1=1e-6,
-            CMDs=CMD, filters=filters, agebins=agebins, mode='zinc')
-
-    param.write('/Users/Jake/Desktop/testpar.par')
-
-
-if __name__ == '__main__':
-    pass
-    #test()
-
-

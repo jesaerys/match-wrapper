@@ -6,9 +6,14 @@
 
 Wrappers for MATCH utilities.
 
-Refer to the MATCH 2.5 README for full documentation on each command. Like
-their command line counterparts, the functions in this module read and
-write data in files, rather than processing data arrays stored in memory.
+Refer to the MATCH 2.5 README and the utility help strings (printed to the
+terminal when a utility is executed without any arguments) for full
+documentation on each utility. The wrapper functions are designed according
+to the MATCH documentation (in terms of the command syntax and the options
+avaiable), and a utility's help string is given precendence over the README
+when there is confliciting information. Like their command line
+counterparts, the functions in this module read and write data in files,
+rather than being interactive tools that process data in memory.
 
 
 Classes
@@ -22,16 +27,33 @@ Classes
 Functions
 ---------
 
-========== =================
+========== ===================
 `calcsfh`  calcsfh wrapper.
 `hybridMC` hybridMC wrapper.
 `zcmerge`  zcmerge wrapper.
 `zcombine` zcombine wrapper.
-========== =================
+========== ===================
+
+
+Notes
+-----
+The following MATCH utilities are not currently supported:
+
+- asciibin2mod
+- calcbinmod
+- fake
+- foreground
+- getxform
+- sspcombine
+- combine1
+- noisyCMD
+- procMC
+- sspcombine
+- stats
+- makefake
 
 """
 import subprocess
-import time
 
 
 class FlagFormatter(object):
@@ -51,6 +73,26 @@ class FlagFormatter(object):
 
     Parameters
     ----------
+    dAv : '{:.2f}', optional
+    diskAv : '{:.2f}', optional
+    dAvy : '{:.2f}', optional
+    zerobin : '{:s}', optional
+    incmult : '{:.2f}', optional
+    incmultsig : '{:.2f}', optional
+    errmult : '{:.2f}', optional
+    errmultsig : '{:.2f}', optional
+    logterr : '{:.2f}', optional
+    logterrsig : '{:.2f}', optional
+    mbolerr : '{:.2f}', optional
+    mbolerrsig : '{:.2f}', optional
+    alpha : '{:.2f}', optional
+    dt : '{:.2f}', optional
+    nburn : '{:d}', optional
+    nmc : '{:d}', optional
+    nt : '{:d}', optional
+    nsfr : '{:d}', optional
+    pscape : '{:.2f}', optional
+    tint : '{:.2f}', optional
 
     Attributes
     ----------
@@ -66,10 +108,11 @@ class FlagFormatter(object):
 
     def __init__(self, **kwargs):
         self.fmt_dict = {
+            # calcsfh
             'dAv': '{:.2f}',
             'diskAv': '{:.2f}',
             'dAvy': '{:.2f}',
-            'zerobin': '{:s}',
+            'zerobin': '{:d}',
             'incmult': '{:.2f}',
             'incmultsig': '{:.2f}',
             'errmult': '{:.2f}',
@@ -78,7 +121,17 @@ class FlagFormatter(object):
             'logterrsig': '{:.2f}',
             'mbolerr': '{:.2f}',
             'mbolerrsig': '{:.2f}',
+            'mcseed': '{:.2f}',
             'alpha': '{:.2f}',
+
+            # hybridMC
+            'dt': '{:.2f}',
+            'nburn': '{:d}',
+            'nmc': '{:d}',
+            'nt': '{:d}',
+            'nsfr': '{:d}',
+            'pscape': '{:.2f}',
+            'tint': '{:.2f}',
             }
         for key, val in kwargs.items():
             if key in self.fmt_dict:
@@ -108,14 +161,14 @@ class FlagFormatter(object):
             multivalued, the subvalues are separatd by `delim`.
 
         """
-        if not val:  # ignore None and False
+        if val is None or val is False:  # ignore None and False
             result = None
         elif val is True:  # True is a special case
             result = '-{:s}'.format(key)
         else:
             fmt = self.fmt_dict[key]
-            if self._islistlike(val):
-                if self._islistlike(fmt):
+            if _islistlike(val):
+                if _islistlike(fmt):
                     valstr_list = [f.format(v) for v, f in zip(val, fmt)]
                 else:
                     valstr_list = [fmt.format(v) for v in val]
@@ -126,20 +179,21 @@ class FlagFormatter(object):
 
         return result
 
-    def _islistlike(self, obj):
-        """True if the object is iterable like a list and is *not* a string."""
-        return ((hasattr(obj, '__iter__') or hasattr(obj, '__getitem__')) and
-                not isinstance(obj, basestring))
+
+def _islistlike(obj):
+    """True if the object is iterable like a list and is *not* a string."""
+    return ((hasattr(obj, '__iter__') or hasattr(obj, '__getitem__')) and
+            not isinstance(obj, basestring))
 
 
 def calcsfh(paramfile, photfile, fakefile, sfhfile, **kwargs):
     """calcsfh wrapper.
 
-    Most command line flags in the MATCH 2.5 README have a corresponding
-    keyword argument in the call signature. Mutually exclusive options,
-    such as certain mode flags and flags for model and transformation
-    selections, are instead available as values for the `mode`, `model`,
-    and `transformation` keywords.
+    Most command line flags have a corresponding keyword argument in the
+    call signature. Mutually exclusive options, such as certain mode flags
+    and flags for model and transformation selections, are instead
+    available as values for the `mode`, `model`, and `transformation`
+    keywords.
 
     All keyword arguments are None by default unless stated otherwise.
     Flag-related arguments set to None are not included in the command
@@ -158,24 +212,21 @@ def calcsfh(paramfile, photfile, fakefile, sfhfile, **kwargs):
         automatically written to the same path with a ".cmd" suffix.
     outfile : str, optional
         Path to a file to capture stdout.
-    mode : {None, 'ddist', 'setz', 'ssp', 'zinc'}, optional
+    mode : {None, 'setz', 'ssp', 'zinc'}, optional
         Set the mode in which calcsfh is run (there are other modes that
         can also be specified, but only one of this particular set can be
         used at a time).
+    ddist : bool, optional
     full : bool, optional
     verb : bool, optional
     allstars : bool, optional
     mcdata : bool, optional
+    allmcdata : bool, optional
     dAv : float, 3-tuple, optional
     diskAv : 4-tuple, 7-tuple, optional
     dAvy : float, optional
-    zerobin : str, optional
-
-        .. note:: Partially supported. I'm not sure what the correct form
-           of the argument is, so it is currently limited to a preformatted
-           string. The value of the zerobin flag in the command string will
-           show up exactly as it is given here.
-
+    appDmod : str, optional
+    zerobin : int, optional
     incmult : float, optional
     incmultsig : float, optional
     errmult : float, optional
@@ -184,14 +235,16 @@ def calcsfh(paramfile, photfile, fakefile, sfhfile, **kwargs):
     logterrsig : float, optional
     mbolerr : float, optional
     mbolerrsig : float, optional
-    model : {None, 'BASTInov', 'BASTI', 'BASTI02nov', 'BASTI02', 'DART',
-            'PADUA00', 'PADUA06', 'VICTORIA', 'VICTORIASS'}, optional
-        Override the default stellar evolution model.
+    mcseed : float, optional
+    model : str, optional
+        Override the default stellar evolution models with one of
+        'BASTInov', 'BASTI', 'BASTI02nov', 'BASTI02', 'DART', 'PADUA00',
+        'PADUA06', 'VICTORIA', 'VICTORIASS'.
     alpha : {-0.2, 0, 0.2, 0.2}, optional
-    transformation : {None, 'BASTInov', 'BASTI', 'BASTI02nov', 'BASTI02',
-            'DART', 'PADUA00', 'PADUA06', 'VICTORIA', 'VICTORIASS'},
-            optional
-        Override the default transformation for the selected model.
+    transformation : str, optional
+        Override the default transformation for the selected model with one
+        of 'BASTInov', 'BASTI', 'BASTI02nov', 'BASTI02', 'DART', 'PADUA00',
+        'PADUA06', 'VICTORIA', 'VICTORIASS'.
     formatter : FlagFormatter or function, optional
         Any function that takes a flag name (`key`) and a value (`val`) as
         the first and second arguments, and returns a string representation
@@ -221,12 +274,12 @@ def calcsfh(paramfile, photfile, fakefile, sfhfile, **kwargs):
         flag_list.append(modeflag)
 
     # Other mode flags
-    flag_list += ['full', 'verb', 'allstars', 'mcdata']
+    flag_list += ['ddist', 'full', 'verb', 'allstars', 'mcdata', 'allmcdata']
 
     # Model generation flags
-    flag_list += ['dAv', 'diskAv', 'dAvy', 'zerobin', 'incmult',
+    flag_list += ['dAv', 'diskAv', 'dAvy', 'appDmod', 'zerobin', 'incmult',
                   'incmultsig', 'errmult', 'errmultsig', 'logterr',
-                  'logterrsig', 'mbolerr', 'mbolerrsig']
+                  'logterrsig', 'mbolerr', 'mbolerrsig', 'mcseed']
 
     # Model selection
     modelflag = kwargs.get('model')
@@ -260,7 +313,6 @@ def calcsfh(paramfile, photfile, fakefile, sfhfile, **kwargs):
     else:
         # Run calcsfh
         subprocess.call(cmd, shell=True)
-        time.sleep(5)  # Finish writing potentially large output files
         result = None
     return result
 
@@ -268,8 +320,8 @@ def calcsfh(paramfile, photfile, fakefile, sfhfile, **kwargs):
 def hybridMC(hmcdatfile, hmcsfhfile, **kwargs):
     """hybridMC wrapper.
 
-    All command line flags in the MATCH 2.5 README have a corresponding
-    keyword argument in the call signature.
+    All command line flags have a corresponding keyword argument in the
+    call signature.
 
     All keyword arguments are None by default unless stated otherwise.
     Flag-related arguments set to None are not included in the command
@@ -283,11 +335,13 @@ def hybridMC(hmcdatfile, hmcsfhfile, **kwargs):
         Path to the SFH output file.
     outfile : str, optional
         Path to a file to capture stdout.
+    countall : bool, optional
     dt : float, optional
     keepall : bool, optional
     nburn : int, optional
     nmc : int, optional
     nt : int, optional
+    nsfr : int, optional
     pscape : float, optional
     tint : float, optional
     formatter : FlagFormatter or function, optional
@@ -308,7 +362,8 @@ def hybridMC(hmcdatfile, hmcsfhfile, **kwargs):
     """
     cmd = 'hybridMC {0:s} {1:s}'.format(hmcsfhfile, hmcdatfile)
 
-    flag_list = ['dt', 'keepall', 'nburn', 'nmc', 'nt', 'pscape', 'tint']
+    flag_list = ['countall', 'dt', 'keepall', 'nburn', 'nmc', 'nt', 'nsfr',
+                 'pscape', 'tint']
 
     # Flag strings
     formatter = kwargs.get('formatter', FlagFormatter())
@@ -328,23 +383,121 @@ def hybridMC(hmcdatfile, hmcsfhfile, **kwargs):
     else:
         # Run hybridMC
         subprocess.call(cmd, shell=True)
-        time.sleep(5)  # Finish writing potentially large output files
         result = None
     return result
 
 
-def zcombine():
-    return None
+def zcmerge(zcbfile_list, merged_zcbfile, **kwargs):
+    """zcmerge wrapper.
+
+    Parameters
+    ----------
+    zcbfile_list : list
+        List of paths to zcombine output files. Note that the zcombine file
+        for the real data should be listed first.
+    merged_zcbfile : str
+        Path to the zcmerge output file (captured stdout).
+    absolute : bool, optional
+        Corresponds to the 'absolute' command line flag. Default is None,
+        in which case it is not included in the command string.
+    norun : bool, optional
+        If True, zcmerge is not actually run and the command string is
+        returned instead. This is useful for checking the command before
+        running it. Default is False.
+
+    Returns
+    -------
+    str or None
+        The zcmerge command string is returned if `norun` is True,
+        otherwise the return value is None.
+
+    """
+    cmd = 'zcmerge'
+
+    # Flag string
+    formatter = FlagFormatter()
+    flagstr = formatter('absolute', kwargs.get('absolute'))
+    if flagstr:
+        cmd = '{0:s} {1:s}'.format(cmd, flagstr)
+
+    # Files
+    if _islistlike(zcbfile_list):
+        zcbfile_list = ' '.join(zcbfile_list)
+    cmd = '{0:s} {1:s} > {2:s}'.format(cmd, zcbfile_list, merged_zcbfile)
+
+    norun = kwargs.get('norun')
+    if norun:
+        result = cmd
+    else:
+        # Run zcmerge
+        subprocess.call(cmd, shell=True)
+        result = None
+    return result
 
 
-def zcmerge():
-    return None
+def zcombine(sfhfile, zcbfile, **kwargs):
+    """zcombine wrapper.
 
-#combine1
-#fake
-#makefake
-#sspcombine
-#stats
+    All command line flags have a corresponding keyword argument in the
+    call signature.
 
-if __name__ == '__main__':
-    pass
+    All keyword arguments are None by default unless stated otherwise.
+    Flag-related arguments set to None are not included in the command
+    string.
+
+    Parameters
+    ----------
+    sfhfile : str or list
+        Path to the input SFH file, or a list of paths for multiple input
+        files.
+    zcbfile : str
+        Path to the zcombine output file (captured stdout).
+    param : str, optional
+    out : str, optional
+    bestonly : bool, optional
+    unweighted : bool, optional
+    jeffreys : bool, optional
+    best : str, optional
+    sigma : bool, optional
+    pct16_84 : bool, optional
+    fullwidth : bool, optional
+    meanbest : bool, optional
+    medbest : bool, optional
+    norun : bool, optional
+        If True, zcombine is not actually run and the command string is
+        returned instead. This is useful for checking the command before
+        running it.
+
+    Returns
+    -------
+    str or None
+        The zcombine command string is returned if `norun` is True,
+        otherwise the return value is None.
+
+    """
+    cmd = 'zcombine'
+
+    flag_list = ['param', 'out', 'bestonly', 'unweighted', 'jeffreys',
+                 'best', 'sigma', 'pct16_84', 'fullwidth', 'meanbest',
+                 'medbest']
+
+    # Flag strings
+    formatter = FlagFormatter()
+    flagstr_gen = (formatter(flag, kwargs.get(flag)) for flag in flag_list)
+    flagstr_list = [flagstr for flagstr in flagstr_gen if flagstr]  # filter out None
+    if flagstr_list:
+        cmd = '{0:s} {1:s}'.format(cmd, ' '.join(flagstr_list))
+
+    # Files
+    if _islistlike(sfhfile):
+        sfhfile = ' '.join(sfhfile)
+    cmd = '{0:s} {1:s} > {2:s}'.format(cmd, sfhfile, zcbfile)
+
+    norun = kwargs.get('norun')
+    if norun:
+        result = cmd
+    else:
+        # Run zcombine
+        subprocess.call(cmd, shell=True)
+        result = None
+    return result
