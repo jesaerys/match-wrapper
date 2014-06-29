@@ -77,18 +77,13 @@ class CMDParam(object):
     VIstep : float
         "V-Istep"
     fake_sm : float
+    Nexclude_gates
     exclude_gates : list
         List of exclude gates. Each gate is a set of coordinates of the
         form ``[(x1, y1), (x2, y2), (x3, y3), (x4, y4)]``.
+    Ncombine_gates
     combine_gates : list
         List of combine gates (see `exclude_gates`).
-
-    Methods
-    -------
-    Nexclude_gates
-        Property (get only). Length of the `exclude_gates` list.
-    Ncombine_gates
-        Property (get only). Length of the `combine_gates` list.
 
     """
 
@@ -127,12 +122,12 @@ class CMDParam(object):
 
     @property
     def Nexclude_gates(self):
-        """Property (get only). Length of the `exclude_gates` list."""
+        """Length of the `exclude_gates` list."""
         return len(self.exclude_gates)
 
     @property
     def Ncombine_gates(self):
-        """Property (get only). Length of the `combine_gates` list."""
+        """Length of the `combine_gates` list."""
         return len(self.combine_gates)
 
 
@@ -227,6 +222,7 @@ class CalcsfhParam(object):
     Bad1 : float
     CMDs : list
         List of `CMDParam` instances, one per CMD.
+    Ncmds
     filters : list
         List of filters referenced by the `CMDParam` instances in `CMDs`.
         Each filter is a dictionary containing the keys,
@@ -241,6 +237,9 @@ class CalcsfhParam(object):
         List of edges of the age bins (either in yr or as log10(t/yr),
         depending on `linage`). The ith and i+1th elements correspond to
         "To" (youngest edge) and "Tf" (oldest edge) of the ith age bin.
+    Ntbins
+    To
+    Tf
     linage : bool
         True if the `agebins` values are in linear years, False if the
         values are ``log10(age/yr)``.
@@ -296,19 +295,8 @@ class CalcsfhParam(object):
 
     Methods
     -------
-    Ncmds
-        Property (get only). Length of the `CMDs` list.
-    To
-        Property (get only).
-    Tf
-        Property (get only).
-    Ntbins
-        Property (get only). One less than the length of the `agebins` list
-        (length of `To` and `Tf`).
     read
-        Create a `CalcsfhParam` instance from a calcsfh parameter file.
     write
-        Write to a calcsfh parameter file.
 
     """
 
@@ -361,24 +349,24 @@ class CalcsfhParam(object):
 
     @property
     def Ncmds(self):
-        """Property (get only). Length of the `CMDs` list."""
+        """Length of the `CMDs` list."""
         return len(self.CMDs)
 
     @property
     def To(self):
-        """Property (get only)."""
+        """Young/most recent edges of the age bins."""
         return self.agebins[:-1]
 
     @property
     def Tf(self):
-        """Property (get only)."""
+        """Oldest edges of the age bins."""
         return self.agebins[1:]
 
     @property
     def Ntbins(self):
-        """Property (get only). One less than the length of the `agebins`
-        list (length of `To` and `Tf`).
-        
+        """One less than the length of the `agebins` list (length of `To`
+        and `Tf`).
+
         """
         l = len(self.agebins)-1
         return l if l>0 else 0
@@ -708,7 +696,6 @@ class CalcsfhParamFormatter(object):
     Methods
     -------
     __call__
-        Return a string for the given key and value.
 
     """
 

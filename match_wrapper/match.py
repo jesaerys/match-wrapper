@@ -102,7 +102,6 @@ class FlagFormatter(object):
     Methods
     -------
     __call__
-        Return a string for the given key and value.
 
     """
 
