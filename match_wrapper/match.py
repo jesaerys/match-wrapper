@@ -146,43 +146,42 @@ class FlagFormatter(object):
             format string in `fmt_dict`.
         val :
             The value to be formatted. No formatting is actually applied if
-            `val` is True, False, or None.
+            `val` is True, False, None, or an empty sequence.
         delim : str, optional
             Delimiter for multivalued flags. Default is ','.
 
         Returns
         -------
         str or None
-            None is returned if `val` is False or None. If `val` is True,
-            then it is ignored and the returned string is of the form
-            '-key'. Otherwise, `val` is formatted based on `key` and the
-            returned string is of the form '-key=val'. If `val` is
-            multivalued, the subvalues are separatd by `delim`.
+            None is returned if `val` is False, None, or an empty sequence.
+            If `val` is True, then it is ignored and the returned string is
+            of the form '-key'. Otherwise, `val` is formatted based on
+            `key` and the returned string is of the form '-key=val'. If
+            `val` is multivalued, the subvalues are separatd by `delim`.
 
         """
-        if val is None or val is False:  # ignore None and False
-            result = None
-        elif val is True:  # True is a special case
+        if val is True:  # True is a special case
             result = '-{:s}'.format(key)
-        else:
+        elif val or val is 0:  # 0 is meaningful
             fmt = self.fmt_dict[key]
-            if _islistlike(val):
-                if _islistlike(fmt):
+            if isinstance(val, basestring):
+                # val is a string; catch here so it's not mistaken for a
+                # list or tuple of values
+                valstr_list = [fmt.format(val)]
+            else:  # val is not a string
+                try:  # val and fmt are sequences
                     valstr_list = [f.format(v) for v, f in zip(val, fmt)]
-                else:
-                    valstr_list = [fmt.format(v) for v in val]
-                valstr = delim.join(valstr_list)
-            else:
-                valstr = fmt.format(val)
+                except (TypeError, ValueError):  # val or fmt is not a sequence
+                    try:  # val is a sequence, fmt is a string
+                        valstr_list = [fmt.format(v) for v in val]
+                    except TypeError:  # val is a single value, fmt is a string
+                        valstr_list = [fmt.format(val)]
+            valstr = delim.join(valstr_list)
             result = '-{0:s}={1:s}'.format(key, valstr)
+        else:  # val is None, False, or an empty sequence (but not 0)
+            result = None
 
         return result
-
-
-def _islistlike(obj):
-    """True if the object is iterable like a list and is *not* a string."""
-    return ((hasattr(obj, '__iter__') or hasattr(obj, '__getitem__')) and
-            not isinstance(obj, basestring))
 
 
 def calcsfh(paramfile, photfile, fakefile, sfhfile, **kwargs):
@@ -420,7 +419,7 @@ def zcmerge(zcbfile_list, merged_zcbfile, **kwargs):
         cmd = '{0:s} {1:s}'.format(cmd, flagstr)
 
     # Files
-    if _islistlike(zcbfile_list):
+    if not isinstance(zcbfile_list, basestring):
         zcbfile_list = ' '.join(zcbfile_list)
     cmd = '{0:s} {1:s} > {2:s}'.format(cmd, zcbfile_list, merged_zcbfile)
 
@@ -488,7 +487,7 @@ def zcombine(sfhfile, zcbfile, **kwargs):
         cmd = '{0:s} {1:s}'.format(cmd, ' '.join(flagstr_list))
 
     # Files
-    if _islistlike(sfhfile):
+    if not isinstance(sfhfile, basestring):
         sfhfile = ' '.join(sfhfile)
     cmd = '{0:s} {1:s} > {2:s}'.format(cmd, sfhfile, zcbfile)
 
